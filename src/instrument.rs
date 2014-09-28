@@ -1,43 +1,12 @@
-
-macro_rules! addable_newtype(
-    ($T:ident) => (
-        impl Add<$T, $T> for $T {
-            fn add(&self, rhs: &$T) -> $T {
-                let ($T(self_val), $T(rhs_val)) = (*self, *rhs);
-                $T(self_val + rhs_val)
-            }
-        }
-    )
-)
-
-macro_rules! scalable_newtype(
-    ($T:ident) => (
-        impl Mul<f64, $T> for $T {
-            fn mul(&self, &rhs: &f64) -> $T {
-                let $T(self_val) = *self;
-                $T(self_val * rhs)
-            }
-        }
-    )
-)
-
-// Units for physical dimensions
-pub struct Mass(pub f64);       // kg
-
-#[deriving(Clone)]
-pub struct Length(pub f64);     // m
-pub struct Time(pub f64);       // s
-
-#[deriving(Clone)]
-pub struct Velocity(f64);       // m/s
-pub struct Force(pub f64);      // N
-pub struct Stiffness(pub f64);  // N/m
-pub struct Damping(pub f64);    // N/m/s
-
-addable_newtype!(Length)
-scalable_newtype!(Length)
-addable_newtype!(Velocity)
-scalable_newtype!(Velocity)
+use super::units::{
+    Mass,
+    Length,
+    Velocity,
+    Accel,
+    Force,
+    Stiffness,
+    Damping
+};
 
 // Opaque handles on components of an Instrument.
 // Privately these are just indexes into Instrument's vectors.
@@ -103,10 +72,10 @@ impl Instrument {
     }
 }
 
-#[deriving(Clone)]
-struct ParticleState {
-    position: Length,
-    velocity: Velocity,
+#[deriving(Clone, Show)]
+pub struct ParticleState {
+    pub position: Length,
+    pub velocity: Velocity,
 }
 
 impl ParticleState {
@@ -134,9 +103,22 @@ impl Mul<f64, ParticleState> for ParticleState {
 }
 
 #[deriving(Clone)]
-struct InstrumentState<'a> {
+pub struct InstrumentState<'a> {
     particle_states: Vec<ParticleState>,
     instrument: &'a Instrument
+}
+
+impl<'a> InstrumentState<'a> {
+    pub fn new(instrument: &'a Instrument) -> InstrumentState<'a> {
+        InstrumentState {
+            particle_states: Vec::from_elem(instrument.particles.len(), ParticleState::new()),
+            instrument: instrument
+        }
+    }
+
+    pub fn particle_state(&self, Particle(index): Particle) -> ParticleState {
+        self.particle_states[index]
+    }
 }
 
 impl<'a> Add<InstrumentState<'a>, InstrumentState<'a>> for InstrumentState<'a> {
@@ -163,15 +145,51 @@ impl<'a> Mul<f64, InstrumentState<'a>> for InstrumentState<'a> {
 }
 
 impl<'a> ::runge_kutta::State for InstrumentState<'a> {
+    // Calculate the time-derivative of the instrument's state.
+    // This returns an InstrumentState with each ParticleState having its
+    // velocity in particle.position and its acceleration in particle.velocity.
     fn f(&self, _: f64) -> InstrumentState<'a> {
 
-        let mut result = InstrumentState {
-            particle_states: Vec::from_elem(self.instrument.particles.len(), ParticleState::new()),
+        // Calculate the force to be applied by each spring
+        // and sum the forces on each particle.
+        let particle_count = self.instrument.particles.len();
+        let mut forces = Vec::from_elem(particle_count, Force(0.0));
+        for spring in self.instrument.springs.iter() {
+            let Particle(p0_index) = spring.p0;
+            let Particle(p1_index) = spring.p1;
+            let p0 = self.particle_states[p0_index];
+            let p1 = self.particle_states[p1_index];
+            // negative strain is in compression, positive is in tension
+            let strain = p1.position - spring.natural_length - p0.position;
+            let dstraindt = p1.velocity - p0.velocity;
+            let Length(strain_val) = strain;
+            if spring.one_sided && strain_val > 0.0 {
+                // no force
+            } else {
+                let force = spring.stiffness * strain + spring.damping * dstraindt;
+                *forces.get_mut(p0_index) = forces[p0_index] + force;
+                *forces.get_mut(p1_index) = forces[p1_index] - force;
+            }
+        }
+
+        // Zero the forces on the earthed particles so they don't move
+        for &Particle(index) in self.instrument.earths.iter() {
+            *forces.get_mut(index) = Force(0.0);
+        }
+
+        // Return a time-derivative of the particles' states.
+        InstrumentState {
+            particle_states: self.particle_states.iter().enumerate().map(|(index, &particle)| {
+                // Returning a time-derivative as an "InstrumentState" means the units mismatch.
+                // Otherwise the RK functions would have to deal with another type.
+                let Velocity(velocity) = particle.velocity;
+                let Accel(accel) = forces[index] / self.instrument.particles[index].mass;
+                ParticleState {
+                    position: Length(velocity),
+                    velocity: Velocity(accel)
+                }
+            }).collect(),
             instrument: self.instrument
-        };
-
-
-
-        result
+        }
     }
 }
