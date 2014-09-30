@@ -21,8 +21,8 @@ pub struct ParticleSpec {
 
 // Specification of a spring
 pub struct SpringSpec {
-    pub p0: Particle,
-    pub p1: Particle,
+    pub p_0: Particle,
+    pub p_1: Particle,
     pub natural_length: Length,
     pub stiffness: Stiffness,
     pub damping: Damping,
@@ -49,16 +49,27 @@ impl Instrument {
         Particle(self.particles.len() - 1)
     }
 
+    // With n=3: (p_0) -- (1) -- (2) -- (p_n)
+    pub fn add_chain(&mut self, p_0: Particle, p_n: Particle, n: uint, mass: Mass, stiffness: Stiffness, damping: Damping) {
+        let mut p_prev = p_0;
+        for _ in range(1, n) {
+            let p_i = self.add_particle(mass, Length(0.0));
+            self.add_spring(p_prev, p_i, Length(0.0), stiffness, damping, false);
+            p_prev = p_i;
+        }
+        self.add_spring(p_prev, p_n, Length(0.0), stiffness, damping, false);
+    }
+
     pub fn add_spring(&mut self,
-                        p0: Particle,
-                        p1: Particle,
+                        p_0: Particle,
+                        p_1: Particle,
                         natural_length: Length,
                         stiffness: Stiffness,
                         damping: Damping,
                         one_sided: bool) -> Spring {
         self.springs.push(SpringSpec{
-            p0: p0,
-            p1: p1,
+            p_0: p_0,
+            p_1: p_1,
             natural_length: natural_length,
             stiffness: stiffness,
             damping: damping,
@@ -119,6 +130,16 @@ impl<'a> InstrumentState<'a> {
     pub fn particle_state(&self, Particle(index): Particle) -> ParticleState {
         self.particle_states[index]
     }
+
+    pub fn trigger_hammer(&mut self,
+                            Particle(hammer_index): Particle,
+                            Particle(target_index): Particle,
+                            velocity: Velocity) {
+        *self.particle_states.get_mut(hammer_index) = ParticleState {
+            position: self.particle_states[target_index].position,
+            velocity: velocity
+        };
+    }
 }
 
 impl<'a> Add<InstrumentState<'a>, InstrumentState<'a>> for InstrumentState<'a> {
@@ -155,20 +176,20 @@ impl<'a> ::runge_kutta::State for InstrumentState<'a> {
         let particle_count = self.instrument.particles.len();
         let mut forces = Vec::from_elem(particle_count, Force(0.0));
         for spring in self.instrument.springs.iter() {
-            let Particle(p0_index) = spring.p0;
-            let Particle(p1_index) = spring.p1;
-            let p0 = self.particle_states[p0_index];
-            let p1 = self.particle_states[p1_index];
+            let Particle(p_0_index) = spring.p_0;
+            let Particle(p_1_index) = spring.p_1;
+            let p_0 = self.particle_states[p_0_index];
+            let p_1 = self.particle_states[p_1_index];
             // negative strain is in compression, positive is in tension
-            let strain = p1.position - spring.natural_length - p0.position;
-            let dstraindt = p1.velocity - p0.velocity;
+            let strain = p_1.position - spring.natural_length - p_0.position;
+            let dstraindt = p_1.velocity - p_0.velocity;
             let Length(strain_val) = strain;
             if spring.one_sided && strain_val > 0.0 {
                 // no force
             } else {
                 let force = spring.stiffness * strain + spring.damping * dstraindt;
-                *forces.get_mut(p0_index) = forces[p0_index] + force;
-                *forces.get_mut(p1_index) = forces[p1_index] - force;
+                *forces.get_mut(p_0_index) = forces[p_0_index] + force;
+                *forces.get_mut(p_1_index) = forces[p_1_index] - force;
             }
         }
 

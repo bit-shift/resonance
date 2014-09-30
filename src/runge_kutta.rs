@@ -4,6 +4,7 @@ pub trait State: Add<Self, Self> + Mul<f64, Self> {
     fn f(&self, t: f64) -> Self;
 }
 
+#[allow(dead_code)]
 pub fn step_rk2<Y>(t: f64, dt: f64, y: &Y) -> Y
 where Y: State {
     let k_1 = y.f(t) * dt;
