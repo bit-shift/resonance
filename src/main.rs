@@ -34,7 +34,7 @@ fn make_string() -> (Instrument, Particle, Particle, Particle) {
     let hammer_stiffness = Stiffness(1e-1);
     let string_mass = Mass(1e-2);
     let string_stiffness = Stiffness(3e5);
-    let string_damping = Damping(1e-1);
+    let string_damping = Damping(0.5);
 
     let mut instrument = Instrument::new();
     let p_earth0 = instrument.add_particle(string_mass, Length(0.0));
@@ -44,9 +44,9 @@ fn make_string() -> (Instrument, Particle, Particle, Particle) {
     let p_hammer = instrument.add_particle(hammer_mass, Length(0.0));
     instrument.earth(p_earth0);
     instrument.earth(p_earth1);
-    instrument.add_chain(p_earth0, p_target, 5, string_mass, string_stiffness, string_damping);
-    instrument.add_chain(p_target, p_pickup, 5, string_mass, string_stiffness, string_damping);
-    instrument.add_chain(p_pickup, p_earth1, 5, string_mass, string_stiffness, string_damping);
+    instrument.add_chain(p_earth0, p_target, 15, string_mass, string_stiffness, string_damping);
+    instrument.add_chain(p_target, p_pickup, 15, string_mass, string_stiffness, string_damping);
+    instrument.add_chain(p_pickup, p_earth1, 15, string_mass, string_stiffness, string_damping);
     instrument.add_spring(p_hammer, p_target, Length(0.0), hammer_stiffness, Damping(0.0), true);
     (instrument, p_hammer, p_target, p_pickup)
 }
@@ -75,7 +75,7 @@ fn main() {
     let source = al::Source::gen();
 
     let sample_freq = 44100.0;
-    let duration = 3.0;
+    let duration = 20.0;
     let num_samples = (sample_freq * duration) as uint;
 
     let dt = 1.0 / sample_freq;

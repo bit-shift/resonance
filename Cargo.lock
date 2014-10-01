@@ -2,11 +2,11 @@
 name = "resonance"
 version = "0.0.1"
 dependencies = [
- "openal-rs 0.0.1 (git+file:///Users/benw/src/rust/openal-rs#57b88f52dd0d57147ed0ec8262095f88b66aa705)",
+ "openal-rs 0.0.1 (git+https://github.com/bjz/openal-rs.git#57b88f52dd0d57147ed0ec8262095f88b66aa705)",
 ]
 
 [[package]]
 name = "openal-rs"
 version = "0.0.1"
-source = "git+file:///Users/benw/src/rust/openal-rs#57b88f52dd0d57147ed0ec8262095f88b66aa705"
+source = "git+https://github.com/bjz/openal-rs.git#57b88f52dd0d57147ed0ec8262095f88b66aa705"
 
