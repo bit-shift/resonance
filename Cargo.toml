@@ -6,6 +6,5 @@ authors = ["Ben Williamson <benw@pobox.com>"]
 
 [dependencies.openal-rs]
 
-#git = "https://github.com/bjz/openal-rs.git"
-git = "file:///Users/benw/src/rust/openal-rs"
+git = "https://github.com/bjz/openal-rs.git"
 
