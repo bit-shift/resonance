@@ -96,9 +96,11 @@ fn main() {
 
     println!("Writing");
 
-    unsafe {
+    {
         let mut f = File::create(&Path::new("sound.raw"));
-        f.write(std::mem::transmute(samples.as_slice()));
+        for &sample in samples.iter() {
+            f.write_le_i16(sample);
+        }
     }
 
     unsafe { buffer.buffer_data(al::FormatMono16, samples.as_slice(), sample_freq as al::ALsizei) };
