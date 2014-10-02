@@ -2,6 +2,7 @@
 
 extern crate openal;
 
+use std::io::File;
 use runge_kutta::step_rk4;
 use units::{
     Mass,
@@ -31,41 +32,60 @@ fn make_simple_instrument(mut instrument: Instrument) -> (Instrument, Particle) 
 
 fn make_string() -> (Instrument, Particle, Particle, Particle) {
     let hammer_mass = Mass(0.05);
-    let hammer_stiffness = Stiffness(1e-1);
+    let hammer_stiffness = Stiffness(1e3);
     let string_mass = Mass(1e-2);
     let string_stiffness = Stiffness(3e5);
     let string_damping = Damping(0.5);
+    let air_damping = Damping(0.3);
 
     let mut instrument = Instrument::new();
-    let p_earth0 = instrument.add_particle(string_mass, Length(0.0));
+    let p_earth = instrument.add_particle(string_mass, Length(0.0));
     let p_target = instrument.add_particle(string_mass, Length(0.0));
     let p_pickup = instrument.add_particle(string_mass, Length(0.0));
-    let p_earth1 = instrument.add_particle(string_mass, Length(0.0));
     let p_hammer = instrument.add_particle(hammer_mass, Length(0.0));
-    instrument.earth(p_earth0);
-    instrument.earth(p_earth1);
-    instrument.add_chain(p_earth0, p_target, 15, string_mass, string_stiffness, string_damping);
+    instrument.earth(p_earth);
+    instrument.add_chain(p_earth,  p_target, 15, string_mass, string_stiffness, string_damping);
     instrument.add_chain(p_target, p_pickup, 15, string_mass, string_stiffness, string_damping);
-    instrument.add_chain(p_pickup, p_earth1, 15, string_mass, string_stiffness, string_damping);
+    instrument.add_chain(p_pickup, p_earth,  15, string_mass, string_stiffness, string_damping);
     instrument.add_spring(p_hammer, p_target, Length(0.0), hammer_stiffness, Damping(0.0), true);
+    instrument.add_spring(p_pickup, p_earth, Length(0.0), Stiffness(0.0), air_damping, false);
     (instrument, p_hammer, p_target, p_pickup)
 }
 
 fn main() {
-    let gain_out = 1000.0;
-    let hammer_velocity =  Velocity(1e2);
+    let hammer_velocity =  Velocity(1e1);
     let (instrument, p_hammer, p_target, p_pickup) = make_string();
 
     let mut state = InstrumentState::new(&instrument);
     state.trigger_hammer(p_hammer, p_target, hammer_velocity);
-    let next_sample = |t, dt| -> f64 {
-        let pickup_state = state.particle_state(p_pickup);
-        //let hammer_state = state.particle_state(p_hammer);
-        //println!("{:0.3f}\t{}\t{}", t, pickup_state, hammer_state);
+
+    let sample_freq = 44100.0;
+    let duration = 10.0;
+    let num_samples = (sample_freq * duration) as uint;
+    let dt = 1.0 / sample_freq;
+    let mut peak = 0.0f64;
+
+    println!("Generating");
+
+    let amplitudes = Vec::from_fn(num_samples, |i| {
+        let t = (i as f64) * dt;
         state = step_rk4(t, dt, &state);
-        let Velocity(sample) = pickup_state.velocity;
-        sample * gain_out
-    };
+        let Velocity(amplitude) = state.particle_state(p_pickup).velocity;
+        if amplitude > peak {
+            peak = amplitude;
+        }
+        if -amplitude > peak {
+            peak = -amplitude;
+        }
+        amplitude
+    });
+    if peak == 0.0 {
+        // avoid div-by-zero for all-zero waveform
+        peak = 1.0;
+    }
+    let samples: Vec<i16> = amplitudes.iter().map(|amplitude| {
+        (amplitude / peak * (i16::MAX - 1) as f64) as i16
+    }).collect();
 
     let device = alc::Device::open(None).expect("Could not open device");
     let ctx = device.create_context([]).expect("Could not create context");
@@ -74,15 +94,12 @@ fn main() {
     let buffer = al::Buffer::gen();
     let source = al::Source::gen();
 
-    let sample_freq = 44100.0;
-    let duration = 20.0;
-    let num_samples = (sample_freq * duration) as uint;
+    println!("Writing");
 
-    let dt = 1.0 / sample_freq;
-    let samples: Vec<i16> = Vec::from_fn(num_samples, |x| {
-        let t = (x as f64) / sample_freq;
-        (next_sample(t, dt) * (i16::MAX - 1) as f64) as i16
-    });
+    unsafe {
+        let mut f = File::create(&Path::new("sound.raw"));
+        f.write(std::mem::transmute(samples.as_slice()));
+    }
 
     unsafe { buffer.buffer_data(al::FormatMono16, samples.as_slice(), sample_freq as al::ALsizei) };
 
