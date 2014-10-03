@@ -1,5 +1,7 @@
 # Resonance
 
+[![Build Status](https://travis-ci.org/benw/resonance.svg?branch=master)](https://travis-ci.org/benw/resonance)
+
 Sound synthesis with [physical modeling][1], simulating a one-dimensional particle system.
 
 The goal is to produce a wide range of realistic sounds that can be played expressively by varying the inputs to the model.
