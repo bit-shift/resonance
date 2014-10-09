@@ -52,6 +52,15 @@ fn make_string() -> (Instrument, Particle, Particle, Particle) {
     (instrument, p_hammer, p_target, p_pickup)
 }
 
+fn slice_as_bytes<'a, T>(slice: &'a [T]) -> &'a [u8] {
+    unsafe {
+        std::mem::transmute(std::raw::Slice {
+            data: slice.as_ptr(),
+            len: slice.len() * std::mem::size_of::<T>()
+        })
+    }
+}
+
 fn main() {
     let hammer_velocity =  Velocity(1e1);
     let (instrument, p_hammer, p_target, p_pickup) = make_string();
@@ -98,9 +107,7 @@ fn main() {
 
     {
         let mut f = File::create(&Path::new("sound.raw"));
-        for &sample in samples.iter() {
-            f.write_le_i16(sample);
-        }
+        f.write(slice_as_bytes(samples.as_slice()));
     }
 
     unsafe { buffer.buffer_data(al::FormatMono16, samples.as_slice(), sample_freq as al::ALsizei) };
