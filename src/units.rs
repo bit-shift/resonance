@@ -43,7 +43,6 @@ macro_rules! mul_newtypes(
         }
     )
 )
-
 // Units for physical dimensions
 
 #[deriving(Clone, Show)]
@@ -70,6 +69,7 @@ pub struct Stiffness(pub f64);  // N/m
 #[deriving(Clone, Show)]
 pub struct Damping(pub f64);    // N/m/s
 
+
 addable_newtype!(Length)
 subable_newtype!(Length)
 scalable_newtype!(Length)
@@ -81,6 +81,7 @@ subable_newtype!(Force)
 
 mul_newtypes!(Stiffness * Length -> Force)
 mul_newtypes!(Damping * Velocity -> Force)
+
 
 impl Div<Mass, Accel> for Force {
     fn div(&self, rhs: &Mass) -> Accel {

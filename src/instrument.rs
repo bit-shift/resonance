@@ -1,4 +1,4 @@
-use super::units::{
+use units::{
     Mass,
     Length,
     Velocity,
@@ -7,6 +7,8 @@ use super::units::{
     Stiffness,
     Damping
 };
+
+use runge_kutta::State;
 
 // Opaque handles on components of an Instrument.
 // Privately these are just indexes into Instrument's vectors.
@@ -135,7 +137,7 @@ impl<'a> InstrumentState<'a> {
                             Particle(hammer_index): Particle,
                             Particle(target_index): Particle,
                             velocity: Velocity) {
-        *self.particle_states.get_mut(hammer_index) = ParticleState {
+        self.particle_states[hammer_index] = ParticleState {
             position: self.particle_states[target_index].position,
             velocity: velocity
         };
@@ -165,7 +167,7 @@ impl<'a> Mul<f64, InstrumentState<'a>> for InstrumentState<'a> {
     }
 }
 
-impl<'a> ::runge_kutta::State for InstrumentState<'a> {
+impl<'a> State for InstrumentState<'a> {
     // Calculate the time-derivative of the instrument's state.
     // This returns an InstrumentState with each ParticleState having its
     // velocity in particle.position and its acceleration in particle.velocity.
@@ -188,14 +190,14 @@ impl<'a> ::runge_kutta::State for InstrumentState<'a> {
                 // no force
             } else {
                 let force = spring.stiffness * strain + spring.damping * dstraindt;
-                *forces.get_mut(p_0_index) = forces[p_0_index] + force;
-                *forces.get_mut(p_1_index) = forces[p_1_index] - force;
+                forces[p_0_index] = forces[p_0_index] + force;
+                forces[p_1_index] = forces[p_1_index] - force;
             }
         }
 
         // Zero the forces on the earthed particles so they don't move
         for &Particle(index) in self.instrument.earths.iter() {
-            *forces.get_mut(index) = Force(0.0);
+            forces[index] = Force(0.0);
         }
 
         // Return a time-derivative of the particles' states.
